@@ -5,6 +5,14 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.MutableTransitionState
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -16,6 +24,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
@@ -39,6 +48,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -158,10 +168,28 @@ fun SearchList(
     airports: List<Airport>,
     onSelectItem: (code: String) -> Unit = {}
 ) {
-    LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        items(airports, key = { it.id }) {
-            it.apply { SearchItem(code, name, onSelectItem) }
-            HorizontalDivider(thickness = 0.dp)
+    val inPreview = LocalInspectionMode.current
+    val visibleState = remember {
+        MutableTransitionState(inPreview).apply {
+            targetState = true
+        }
+    }
+
+    AnimatedVisibility(
+        visibleState = visibleState,
+        enter = slideInHorizontally(
+            animationSpec = spring(
+                stiffness = Spring.StiffnessVeryLow,
+                dampingRatio = Spring.DampingRatioLowBouncy
+            )
+        ),
+        exit = fadeOut()
+    ) {
+        LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            items(airports, key = { it.id }) {
+                it.apply { AirportItem(code, name, onSelectItem) }
+                HorizontalDivider(thickness = 0.dp)
+            }
         }
     }
 }
@@ -170,21 +198,50 @@ fun SearchList(
 fun FlightRouteList(
     routes: List<FlightRoute>,
     headline: String = "",
-    onToggleFavorite: (FlightRoute) -> Unit = {}
+    onToggleFavorite: (FlightRoute) -> Unit = {},
 ) {
-    LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        item(key = "headline") {
-            Text(
-                text = headline,
-                style = MaterialTheme.typography.titleLarge,
-                modifier = Modifier.padding(bottom = 8.dp)
-            )
+    val inPreview = LocalInspectionMode.current
+    val visibleState = remember {
+        MutableTransitionState(inPreview).apply {
+            targetState = true
         }
-        items(routes, key = { "${it.departure.code}-${it.destination.code}" }) { route ->
-            FlightRouteItem(
-                route = route,
-                onFavoriteClick = { onToggleFavorite(route) }
-            )
+    }
+
+    AnimatedVisibility(
+        visibleState = visibleState,
+        enter = fadeIn(
+            animationSpec = spring(dampingRatio = Spring.DampingRatioLowBouncy)
+        ),
+        exit = fadeOut()
+    ) {
+        LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            item(key = "headline") {
+                Text(
+                    text = headline,
+                    style = MaterialTheme.typography.titleLarge,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+            }
+            itemsIndexed(
+                routes,
+                key = { _, route -> "${route.departure.code}-${route.destination.code}" }
+            ) { index, route ->
+                FlightRouteItem(
+                    route = route,
+                    onFavoriteClick = { onToggleFavorite(route) },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .animateEnterExit(
+                            enter = slideInVertically(
+                                animationSpec = spring(
+                                    stiffness = Spring.StiffnessVeryLow,
+                                    dampingRatio = Spring.DampingRatioNoBouncy
+                                ),
+                                initialOffsetY = { it * (index + 1) }
+                            )
+                        )
+                )
+            }
         }
     }
 }
@@ -192,28 +249,27 @@ fun FlightRouteList(
 @Composable
 fun FlightRouteItem(
     route: FlightRoute,
-    onFavoriteClick: () -> Unit
+    onFavoriteClick: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp)
+        modifier = modifier
     ) {
         Row(
-            modifier = Modifier.padding(16.dp),
+            modifier = Modifier.padding(16.dp).fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(modifier = Modifier.weight(1f)) {
-                Row(modifier = Modifier.fillMaxWidth()) {
+                Row {
                     Text("DEPART", style = MaterialTheme.typography.bodySmall)
                 }
-                route.departure.apply { SearchItem(code, name) }
+                route.departure.apply { AirportItem(code, name) }
 
                 Spacer(modifier = Modifier.height(4.dp))
-                Row(modifier = Modifier.fillMaxWidth()) {
+                Row {
                     Text("ARRIVE", style = MaterialTheme.typography.bodySmall)
                 }
-                route.destination.apply { SearchItem(code, name) }
+                route.destination.apply { AirportItem(code, name) }
             }
 
             IconButton(onClick = onFavoriteClick) {
@@ -236,7 +292,7 @@ fun FlightRouteItem(
 }
 
 @Composable
-fun SearchItem(
+fun AirportItem(
     code: String,
     name: String,
     onSelectItem: (code: String) -> Unit = {}

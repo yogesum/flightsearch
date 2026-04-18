@@ -50,7 +50,7 @@ class FlightSearchViewModel @Inject constructor(
                 repository.getAllAirports()
             ) { favorites, airports ->
                 val departure = airports.firstOrNull { it.code == code } ?: Airport()
-                airports.map { destination ->
+                airports.filter { it.code != code }.map { destination ->
                     val id = favorites.firstOrNull {
                         it.departureCode == code && it.destinationCode == destination.code
                     }?.id ?: 0
